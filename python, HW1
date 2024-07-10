@@ -1,0 +1,42 @@
+import asyncio
+import aiohttp
+from bs4 import BeautifulSoup as BS
+
+
+async def get_code(session, url):   #получаем код страниц
+    async with session.get(url) as response:
+        return await response.text()
+
+async def get_links(html):  #извлечаем ссылки со страницы
+    soup = BS(html, 'html.parser')
+    links = [a['href'] for a in soup.find_all('a', href=True) if (a['href'])[:6] == '/wiki/']
+    return links
+
+
+async def search(session, start, end):
+    queue = [(start, [start])]  #очередь со стартовой ссылкоц и путем
+    seen = set([start]) #те ссылки, что уже были посещены
+    
+    while queue != []:    #проходимся по ссылкам очереди
+        url, way = queue.pop(0)    #и берем из нее первую  ссылку
+        html = await get_code(session, f'https://en.wikipedia.org{url}')
+        links = await get_links(html)
+        
+        for link in links:
+            
+            if link == end: #если целевая ссылка, то возвращаем длину
+                print('Длина пути между статьями: ', len(way))
+                return
+            
+            if link not in seen:    #если по этой ссылке еще не проходили, то переходим по ней
+                seen.add(link)
+                queue.append((link, way + [link]))
+
+async def main(start, end):
+    async with aiohttp.ClientSession() as session:
+        await search(session, start, end)
+
+
+start = '/wiki/2007%E2%80%9308_Scottish_League_Cup'
+end = '/wiki/Philosophy'
+asyncio.run(main(start, end))
